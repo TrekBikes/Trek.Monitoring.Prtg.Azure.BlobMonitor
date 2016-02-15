@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using PowerArgs;
@@ -13,6 +14,19 @@ namespace Trek.Monitoring.Prtg.Azure.BlobMonitor
 
         static void Main(string[] args)
         {
+            var monitorArgs = ParseArgs(args);
+
+            // Fetch the data
+            var result = GetResults(monitorArgs);
+
+            // Output the results
+            OutputResults(result);
+
+            Environment.Exit((int)PrtgEnvironmentExitCode.Ok);
+        }
+
+        private static MonitorArgs ParseArgs(string[] args)
+        {
             MonitorArgs monitorArgs = null;
 
             try
@@ -23,21 +37,36 @@ namespace Trek.Monitoring.Prtg.Azure.BlobMonitor
             {
                 Console.WriteLine(Environment.NewLine + ex.Message + Environment.NewLine);
                 ArgUsage.GenerateUsageFromTemplate<MonitorArgs>().WriteLine();
-                Environment.Exit((int)PrtgEnvironmentExitCode.SystemError); // System Error
+                Environment.Exit((int) PrtgEnvironmentExitCode.SystemError); // System Error
             }
+            return monitorArgs;
+        }
 
-            int numOfBlockBlobs = 0;
-            int numOfMatchedBlobs = 0;
-            long containerSize = 0;
-            long matchedBlobSize = 0;
+        private static void OutputResults(ChannelResults result)
+        {
+            // Emit the results as XML due to having multiple channels.
+            var doc = new XDocument(
+                new XElement("prtg",
+                    BuildResultElement("Number of Blobs in Container", result.TotalNumberOfBlockBlobs, "Count"),
+                    BuildResultElement("Total Bytes of Blobs in Container", result.TotalContainerSizeInBytes, "BytesDisk"),
+                    BuildResultElement("Number of Matching Blobs in Container", result.TotalNumberOfMatchedBlockBlobs, "Count"),
+                    BuildResultElement("Total Bytes of Matching Blobs in Container",
+                        result.TotalContainerSizeOfMatchedBlobsInBytes, "BytesDisk")));
+            Console.WriteLine(doc.ToString());
+        }
+
+        private static ChannelResults GetResults(MonitorArgs monitorArgs)
+        {
+            var result = new ChannelResults();
 
             foreach (var blob in GetContainer(monitorArgs).ListCloudBlockBlobs(monitorArgs.MatchInSubdirectories))
             {
-                numOfBlockBlobs++;
-                containerSize += blob.Properties.Length;
+                result.TotalNumberOfBlockBlobs++;
+                result.TotalContainerSizeInBytes += blob.Properties.Length;
 
                 // Make sure it has a name, and it matches the pattern
-                if (string.IsNullOrWhiteSpace(blob.Name) || !Regex.IsMatch(blob.Name, monitorArgs.BlobNamePattern, RegexOptions.IgnoreCase | RegexOptions.Compiled))
+                if (string.IsNullOrWhiteSpace(blob.Name) ||
+                    !Regex.IsMatch(blob.Name, monitorArgs.BlobNamePattern, RegexOptions.IgnoreCase | RegexOptions.Compiled))
                 {
                     continue;
                 }
@@ -61,17 +90,18 @@ namespace Trek.Monitoring.Prtg.Azure.BlobMonitor
                     }
                 }
 
-
-                numOfMatchedBlobs++;
-                matchedBlobSize += blob.Properties.Length;
+                result.TotalNumberOfMatchedBlockBlobs++;
+                result.TotalContainerSizeOfMatchedBlobsInBytes += blob.Properties.Length;
             }
+            return result;
+        }
 
-            
-            Console.WriteLine($@"{numOfBlockBlobs}:Number of Blobs in Container");
-            Console.WriteLine($@"{containerSize}:Total Bytes of Blobs in Container");
-            Console.WriteLine($@"{numOfMatchedBlobs}:Number of Matching Blobs in Container");
-            Console.WriteLine($@"{matchedBlobSize}:Total Bytes of Matching Blobs in Container");
-            Environment.Exit((int)PrtgEnvironmentExitCode.Ok);
+        private static XElement BuildResultElement(string channel, long value, string unit)
+        {
+            return new XElement("result",
+                new XElement("channel", channel),
+                new XElement("value", value),
+                new XElement("unit", unit));
         }
 
         private static CloudBlobContainer GetContainer(MonitorArgs monitorArgs)
