@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/TrekBikes/Trek.Monitoring.Prtg.Azure.BlobMonitor.svg?branch=master)](https://travis-ci.org/TrekBikes/Trek.Monitoring.Prtg.Azure.BlobMonitor)
+
 # PRTG Azure Blob Monitor
 
 A custom EXE PRTG monitor that checks a container in Azure Blob Storage for the following
