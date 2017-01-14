@@ -2,7 +2,7 @@
 
 # PRTG Azure Blob Monitor
 
-A custom EXE PRTG monitor that checks a container in Azure Blob Storage for the following
+An _Advanced EXE_ [PRTG](https://www.paessler.com/prtg) custom sensor monitor that checks a container in Azure Blob Storage for the following
 * Number of Blobs
 * Number of Blobs matching a specific pattern
 * Total size of Blobs
