@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using PowerArgs;
+using PrtgSharp;
+using PrtgSharp.ChannelProperties.Optional;
 
 namespace Trek.Monitoring.Prtg.Azure.BlobMonitor
 {
@@ -44,15 +46,16 @@ namespace Trek.Monitoring.Prtg.Azure.BlobMonitor
 
         private static void OutputResults(ChannelResults result)
         {
-            // Emit the results as XML due to having multiple channels.
-            var doc = new XDocument(
-                new XElement("prtg",
-                    BuildResultElement("Number of Blobs in Container", result.TotalNumberOfBlockBlobs, "Count"),
-                    BuildResultElement("Total Bytes of Blobs in Container", result.TotalContainerSizeInBytes, "BytesDisk"),
-                    BuildResultElement("Number of Matching Blobs in Container", result.TotalNumberOfMatchedBlockBlobs, "Count"),
-                    BuildResultElement("Total Bytes of Matching Blobs in Container",
-                        result.TotalContainerSizeOfMatchedBlobsInBytes, "BytesDisk")));
-            Console.WriteLine(doc.ToString());
+            var channels = new List<IChannel>
+            {
+                new Channel("Number of Blobs in Container", result.TotalNumberOfBlockBlobs, new []{ ValueUnitProperty.Count }),
+                new Channel("Total Bytes of Blobs in Container", result.TotalContainerSizeInBytes, new []{ ValueUnitProperty.BytesDisk }),
+                new Channel("Number of Matching Blobs in Container", result.TotalNumberOfMatchedBlockBlobs, new []{ ValueUnitProperty.Count }),
+                new Channel("Total Bytes of Matching Blobs in Container", result.TotalContainerSizeOfMatchedBlobsInBytes, new []{ ValueUnitProperty.BytesDisk }),
+            };
+
+            var report = new PrtgSensorSuccessResult(channels);
+            Console.WriteLine(report.SerializeToXElement().ToString());
         }
 
         private static ChannelResults GetResults(MonitorArgs monitorArgs)
@@ -94,14 +97,6 @@ namespace Trek.Monitoring.Prtg.Azure.BlobMonitor
                 result.TotalContainerSizeOfMatchedBlobsInBytes += blob.Properties.Length;
             }
             return result;
-        }
-
-        private static XElement BuildResultElement(string channel, long value, string unit)
-        {
-            return new XElement("result",
-                new XElement("channel", channel),
-                new XElement("value", value),
-                new XElement("unit", unit));
         }
 
         private static CloudBlobContainer GetContainer(MonitorArgs monitorArgs)
