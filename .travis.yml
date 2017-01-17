@@ -1,0 +1,2 @@
+language: csharp
+solution: Trek.Monitoring.Prtg.Azure.BlobMonitor.sln
